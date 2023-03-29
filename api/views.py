@@ -2,11 +2,18 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
+from rest_framework.generics import ListAPIView, RetrieveAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
-from book.models import Book, Author
-from .serializers import BookSerializer, BookCreateSerializer, AuthorSerializer, BookUpdateSerializer, \
-    AuthorCreateSerializer
+from book.models import Book, Author, LibraryUser, BookInstance
+from .pagination import DefaultPageNumberPagination
+from .permissions import IsAdminOrReadOnly
+from .serializers import BookSerializer, BookCreateSerializer, AuthorSerializer, \
+    AuthorCreateSerializer, BookInstanceSerializer
+
+from rest_framework.permissions import IsAuthenticated
 
 
 # Create your views here.
@@ -23,15 +30,15 @@ def book_list(request):
         return Response('Book saved successfully', status=status.HTTP_201_CREATED)
 
 
-@api_view(['PUT'])
-def update_book_list(request, pk):
-    my_book = get_object_or_404(Book, pk=pk)
-    serializer = BookUpdateSerializer(data=request.data)
-    if serializer.is_valid(raise_exception=True):
-        my_book.update(Book, serializer)
-        return Response("Book Update Successful")
-    else:
-        return Response(serializer.errors, status=403)
+# @api_view(['PUT'])
+# def update_book_list(request, pk):
+#     my_book = get_object_or_404(Book, pk=pk)
+#     serializer = BookUpdateSerializer(data=request.data)
+#     if serializer.is_valid(raise_exception=True):
+#         my_book.update(Book, serializer)
+#         return Response("Book Update Successful")
+#     else:
+#         return Response(serializer.errors, status=403)
 
 
 # @api_view(['DELETE'])
@@ -69,16 +76,6 @@ def author_detail(request, pk):
         return Response('Author updated', serialized_data.Meta)
 
 
-class BookCreateApiView(generics.ListCreateAPIView):
-    queryset = Book.objects.all()
-    serializer_class = BookSerializer(Book, queryset)
-
-
-class AuthorCreateApiView(generics.ListCreateAPIView):
-    queryset = Author.objects.all()
-    serializer_class = AuthorCreateSerializer(Author, queryset)
-
-
 @api_view(['POST'])
 def AuthorCreate(request):
     serializers = AuthorCreateSerializer(data=request.data)
@@ -87,3 +84,58 @@ def AuthorCreate(request):
     return Response('Author created successfully', status=status.HTTP_201_CREATED)
 
 
+class GetBookViews(generics.ListAPIView):
+    queryset = Book.objects.select_related('author').all()
+    serializer_class = BookSerializer
+
+
+class GetAuthorView(ListAPIView):
+    queryset = Author.objects.all()
+    serializer_class = AuthorSerializer
+
+
+class GetAuthorDetailView(RetrieveUpdateDestroyAPIView):
+    queryset = Author.objects.all()
+    serializer_class = AuthorSerializer
+
+
+class GetBookDetailView(RetrieveAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookSerializer
+
+
+class CreateAuthorView(generics.CreateAPIView):
+    queryset = Author.objects.all()
+    serializer_class = AuthorCreateSerializer
+
+
+class CreateBookView(generics.CreateAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookCreateSerializer
+
+
+@api_view()
+def an_author_detail(request, pk):
+    author = get_object_or_404(Author, pk=pk)
+    serializer = AuthorSerializer(author)
+    return Response(serializer.data)
+
+
+class AuthorViewSet(ModelViewSet):
+    permission_classes = [IsAdminOrReadOnly]
+    pagination_class = DefaultPageNumberPagination
+    queryset = Author.objects.all()
+    serializer_class = AuthorSerializer
+
+
+class BookViewSet(ModelViewSet):
+    permission_classes = [IsAdminOrReadOnly]
+    pagination_class = DefaultPageNumberPagination
+    queryset = Book.objects.all()
+    serializer_class = BookSerializer
+
+
+class BookInstanceSet(ModelViewSet):
+    pagination_class = DefaultPageNumberPagination
+    queryset = BookInstance.objects.all()
+    serializer_class = BookInstanceSerializer
